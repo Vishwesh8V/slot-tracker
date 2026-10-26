@@ -89,7 +89,7 @@ class RolloverPlannerTest {
         // A key that also exists on Tuesday must not tick Tuesday's task.
         val sharedKey = TaskKey("t:shared", leetcode)
         val slot = SlotSource("t:shared", "Evening", time(20), time(22), 0, listOf(leetcode))
-        val schedule = { date: LocalDate -> DayBuilder.schedule(date, null, listOf(slot), SeedFixture.items) }
+        val schedule = { date: LocalDate -> DayBuilder.schedule(date, null, listOf(slot), SeedFixture.items, ROLLOVER) }
 
         val result = plan(MON, wed, mapOf(sharedKey to LiveState(true, null, null)), schedule)!!
 
@@ -100,7 +100,7 @@ class RolloverPlannerTest {
     fun `override day in a gap uses the override schedule`() {
         val overrideTuesday = { date: LocalDate ->
             if (date == tue) {
-                DayBuilder.schedule(date, emptyList(), emptyList(), SeedFixture.items)
+                DayBuilder.schedule(date, emptyList(), emptyList(), SeedFixture.items, ROLLOVER)
             } else {
                 SeedFixture.scheduleFor(date)
             }
@@ -116,7 +116,7 @@ class RolloverPlannerTest {
         // Snapshot fields come from the schedule at rollover time, not from item ids.
         val renamed = SeedFixture.items.mapValues { (_, item) -> item.copy(name = item.name.uppercase()) }
         val schedule = { date: LocalDate ->
-            DayBuilder.schedule(date, null, SeedFixture.templateFor(date.dayOfWeek), renamed)
+            DayBuilder.schedule(date, null, SeedFixture.templateFor(date.dayOfWeek), renamed, ROLLOVER)
         }
 
         val result = plan(MON, tue, scheduleFor = schedule)!!

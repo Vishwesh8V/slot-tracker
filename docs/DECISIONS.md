@@ -13,7 +13,8 @@ Choices made where [SPEC.md](../SPEC.md) was silent or ambiguous. User-confirmed
 | versionCode | CI run number (per spec) |
 | DI | Manual DI: a single `AppContainer` owned by the `Application` (the spec leaves this to Claude Code) |
 | SDK levels | minSdk 31, compileSdk/targetSdk 37 (latest stable at build time) |
-| Android auto-backup | Off (`allowBackup="false"`): the app is offline with no accounts, and backup is the in-app JSON export (§9). *Pending user confirmation.* |
+| Android auto-backup | Off (`allowBackup="false"`): the app is offline with no accounts, and backup is the in-app JSON export (§9) ✅ |
+| App icon | Left to Claude ✅. Adaptive vector icon: two "slot" pills on a deep-indigo gradient, the first ticked, the next with an amber item dot. Includes a monochrome layer for One UI themed icons |
 | Spec PDF | Not committed (git-ignored); `SPEC.md` is its transcription. |
 
 ## Behaviour
@@ -22,7 +23,17 @@ Choices made where [SPEC.md](../SPEC.md) was silent or ambiguous. User-confirmed
 |---|---|
 | Template edits vs today | §9 wins over §3: template edits **always** apply to today. Ticks/notes are kept for (slot, item) pairs that still exist and dropped for the rest ✅ |
 | Task identity ("same task") | A task is (slot identity, item). Each slot has a stable identity, so editing a slot's label or time keeps its ticks; deleting the slot drops them. An override slot copied from a template slot remembers its source template slot, so ticks carry over when an override is created for today ✅ |
+| Slot order within a day | Time order along the *effective* day, which starts at the rollover time: with rollover 06:00, a 02:00 slot is after midnight and sorts after a 20:00 slot. Equal start times keep their stored order ✅ |
 | Clock moves backwards | If the effective date falls before the live day (westward time-zone change or clock set back), the app keeps showing the live day until local time catches up. Days are never logged twice ✅ |
+
+## Visual design
+
+Left to Claude, with the brief "sleek and aesthetic" ✅. Direction for the widget and app (phases 2–3):
+
+- Calm, minimal surfaces: near-white in light mode, near-black in dark mode, solid (readable over any wallpaper, spec §5).
+- The **item colours carry the colour**. App chrome is neutral with a single indigo accent taken from the icon. No wallpaper-based dynamic colour, so the look is the same everywhere and item colours never clash with it.
+- Generous rounding (One UI style), soft tinted slot containers, slim colour bars for items, restrained typography (clear hierarchy, few weights).
+- Done tasks fade and strike through rather than disappear.
 
 ## Data-model refinements (implementation detail)
 

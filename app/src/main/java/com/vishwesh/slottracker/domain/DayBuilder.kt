@@ -1,22 +1,26 @@
 package com.vishwesh.slottracker.domain
 
 import java.time.LocalDate
+import java.time.LocalTime
 
 object DayBuilder {
     /**
      * Resolves the schedule for [date]: the override's slots if the date has an override
      * ([overrideSlots] non-null, possibly empty), otherwise the weekday template.
-     * Slots are returned in time order.
+     *
+     * Slots are returned in time order along the effective day, which starts at [rollover]:
+     * with rollover 06:00, a 02:00 slot happens after midnight and sorts after a 20:00 slot.
      */
     fun schedule(
         date: LocalDate,
         overrideSlots: List<SlotSource>?,
         templateSlots: List<SlotSource>,
         items: Map<Long, ItemInfo>,
+        rollover: LocalTime,
     ): DaySchedule {
         val sources = overrideSlots ?: templateSlots
         val slots = sources
-            .sortedWith(compareBy<SlotSource>({ it.start }, { it.sortOrder }))
+            .sortedWith(compareBy<SlotSource>({ minutesAfter(rollover, it.start) }, { it.sortOrder }))
             .map { source ->
                 ScheduledSlot(
                     slotKey = source.slotKey,
@@ -27,6 +31,11 @@ object DayBuilder {
                 )
             }
         return DaySchedule(date = date, isOverride = overrideSlots != null, slots = slots)
+    }
+
+    private fun minutesAfter(rollover: LocalTime, time: LocalTime): Int {
+        val diff = (time.hour * 60 + time.minute) - (rollover.hour * 60 + rollover.minute)
+        return Math.floorMod(diff, 24 * 60)
     }
 
     /**

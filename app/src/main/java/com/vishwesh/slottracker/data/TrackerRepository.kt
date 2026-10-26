@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.map
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 
 /** The live day: the effective date currently shown and not yet logged to history. */
 data class LiveDay(
@@ -85,11 +86,12 @@ class TrackerRepository(
      * Returns the live date afterwards.
      */
     suspend fun rolloverIfNeeded(): LocalDate {
-        val today = EffectiveDay.of(now(), settings.currentRolloverTime())
+        val rollover = settings.currentRolloverTime()
+        val today = EffectiveDay.of(now(), rollover)
         return db.withTransaction {
             val liveDate = liveDate()
             val states = liveDate?.let { liveStates(it) }.orEmpty()
-            val plan = RolloverPlanner.plan(liveDate, today, states, ::scheduleFor)
+            val plan = RolloverPlanner.plan(liveDate, today, states) { scheduleFor(it, rollover) }
                 ?: return@withTransaction liveDate!!
             historyDao.insertAll(plan.history.map { it.toEntity() })
             taskStateDao.clear()
@@ -102,10 +104,11 @@ class TrackerRepository(
         db.invalidationTracker.createFlow(*AppDatabase.LIVE_DAY_TABLES).map { loadLiveDay() }
 
     suspend fun loadLiveDay(): LiveDay {
-        val fallback = EffectiveDay.of(now(), settings.currentRolloverTime())
+        val rollover = settings.currentRolloverTime()
+        val fallback = EffectiveDay.of(now(), rollover)
         return db.withTransaction {
             val date = liveDate() ?: fallback
-            val schedule = scheduleFor(date)
+            val schedule = scheduleFor(date, rollover)
             LiveDay(date, schedule, DayBuilder.tasks(schedule, liveStates(date)))
         }
     }
@@ -147,7 +150,9 @@ class TrackerRepository(
         return true
     }
 
-    suspend fun scheduleFor(date: LocalDate): DaySchedule {
+    suspend fun scheduleFor(date: LocalDate): DaySchedule = scheduleFor(date, settings.currentRolloverTime())
+
+    private suspend fun scheduleFor(date: LocalDate, rollover: LocalTime): DaySchedule {
         val items = itemDao.all().associate { it.id to ItemInfo(it.id, it.name, it.colorArgb, it.details) }
         val overrideSlots = if (scheduleDao.hasOverride(date)) {
             val assignments = scheduleDao.overrideAssignments(date).groupBy { it.overrideSlotId }
@@ -180,7 +185,7 @@ class TrackerRepository(
         } else {
             emptyList()
         }
-        return DayBuilder.schedule(date, overrideSlots, templateSlots, items)
+        return DayBuilder.schedule(date, overrideSlots, templateSlots, items, rollover)
     }
 
     private suspend fun liveDate(): LocalDate? = metaDao.get(KEY_LIVE_DATE)?.let(LocalDate::parse)

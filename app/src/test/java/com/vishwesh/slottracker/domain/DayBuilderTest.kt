@@ -61,7 +61,7 @@ class DayBuilderTest {
     @Test
     fun `override replaces the template for that date`() {
         val override = listOf(SlotSource("o:1", "Afternoon", time(14), time(15), 0, listOf(math)))
-        val schedule = DayBuilder.schedule(MON, override, SeedFixture.templateFor(DayOfWeek.MONDAY), items)
+        val schedule = DayBuilder.schedule(MON, override, SeedFixture.templateFor(DayOfWeek.MONDAY), items, ROLLOVER)
 
         assertTrue(schedule.isOverride)
         assertEquals(listOf("Afternoon"), schedule.slots.map { it.label })
@@ -70,7 +70,7 @@ class DayBuilderTest {
 
     @Test
     fun `empty override means nothing scheduled, not the template`() {
-        val schedule = DayBuilder.schedule(MON, emptyList(), SeedFixture.templateFor(DayOfWeek.MONDAY), items)
+        val schedule = DayBuilder.schedule(MON, emptyList(), SeedFixture.templateFor(DayOfWeek.MONDAY), items, ROLLOVER)
 
         assertTrue(schedule.isOverride)
         assertTrue(schedule.slots.isEmpty())
@@ -84,9 +84,35 @@ class DayBuilderTest {
             SlotSource("t:2", "Early", time(7), time(8), 1, listOf(diffusion)),
             SlotSource("t:3", "Mid", time(12), time(13), 2, listOf(leetcode)),
         )
-        val schedule = DayBuilder.schedule(MON, null, slots, items)
+        val schedule = DayBuilder.schedule(MON, null, slots, items, ROLLOVER)
 
         assertEquals(listOf("Early", "Mid", "Late"), schedule.slots.map { it.label })
+    }
+
+    @Test
+    fun `slots before the rollover time happen after midnight and sort last`() {
+        val slots = listOf(
+            SlotSource("t:1", "Night", time(2), time(4), 0, listOf(math)),
+            SlotSource("t:2", "Evening", time(20), time(22), 1, listOf(leetcode)),
+            SlotSource("t:3", "Dawn", time(6), time(7), 2, listOf(diffusion)),
+            SlotSource("t:4", "Morning", time(10), time(13), 3, listOf(diffusion)),
+        )
+
+        val sixAm = DayBuilder.schedule(MON, null, slots, items, ROLLOVER)
+        assertEquals(listOf("Dawn", "Morning", "Evening", "Night"), sixAm.slots.map { it.label })
+
+        val midnight = DayBuilder.schedule(MON, null, slots, items, time(0))
+        assertEquals(listOf("Night", "Dawn", "Morning", "Evening"), midnight.slots.map { it.label })
+    }
+
+    @Test
+    fun `slots starting at the same time keep their stored order`() {
+        val slots = listOf(
+            SlotSource("t:1", "B", time(10), time(11), 1, listOf(math)),
+            SlotSource("t:2", "A", time(10), time(12), 0, listOf(leetcode)),
+        )
+
+        assertEquals(listOf("A", "B"), DayBuilder.schedule(MON, null, slots, items, ROLLOVER).slots.map { it.label })
     }
 
     @Test
@@ -123,7 +149,7 @@ class DayBuilderTest {
             SlotSource("t:1", "Morning", time(10), time(13), 0, listOf(leetcode)),
             SlotSource("t:2", "Evening", time(20), time(22), 1, listOf(leetcode)),
         )
-        val schedule = DayBuilder.schedule(MON, null, slots, items)
+        val schedule = DayBuilder.schedule(MON, null, slots, items, ROLLOVER)
         val tasks = DayBuilder.tasks(schedule, mapOf(TaskKey("t:2", leetcode) to LiveState(true, null, null)))
 
         assertEquals(listOf(false, true), tasks.map { it.done })
@@ -132,7 +158,7 @@ class DayBuilderTest {
     @Test
     fun `assignments to unknown items are skipped`() {
         val slots = listOf(SlotSource("t:1", "Morning", time(10), time(13), 0, listOf(diffusion, 404L)))
-        val schedule = DayBuilder.schedule(MON, null, slots, items)
+        val schedule = DayBuilder.schedule(MON, null, slots, items, ROLLOVER)
 
         assertEquals(listOf("Diffusion Models"), schedule.slots.single().items.map { it.name })
     }

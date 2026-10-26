@@ -29,10 +29,13 @@ object SeedFixture {
     }
 
     fun scheduleFor(date: LocalDate): DaySchedule =
-        DayBuilder.schedule(date, null, templateFor(date.dayOfWeek), items)
+        DayBuilder.schedule(date, null, templateFor(date.dayOfWeek), items, ROLLOVER)
 }
 
 fun time(hour: Int, minute: Int = 0): LocalTime = LocalTime.of(hour, minute)
+
+/** The default day rollover time (spec §8). */
+val ROLLOVER: LocalTime = time(6)
 
 // Mon 26 Oct 2026 is the first Monday used throughout the tests.
 val MON: LocalDate = LocalDate.of(2026, 10, 26)
