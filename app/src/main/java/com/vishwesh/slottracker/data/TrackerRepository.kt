@@ -14,12 +14,17 @@ import com.vishwesh.slottracker.domain.EffectiveDay
 import com.vishwesh.slottracker.domain.HistoryRecord
 import com.vishwesh.slottracker.domain.ItemInfo
 import com.vishwesh.slottracker.domain.LiveState
+import com.vishwesh.slottracker.domain.Occurrence
 import com.vishwesh.slottracker.domain.RolloverPlanner
 import com.vishwesh.slottracker.domain.SlotKeys
 import com.vishwesh.slottracker.domain.SlotSource
+import com.vishwesh.slottracker.domain.SlotTiming
+import com.vishwesh.slottracker.domain.Streaks
 import com.vishwesh.slottracker.domain.Task
 import com.vishwesh.slottracker.domain.TaskKey
+import com.vishwesh.slottracker.domain.TaskStatus
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import java.time.Instant
 import java.time.LocalDate
@@ -29,6 +34,7 @@ import java.time.LocalTime
 /** The live day: the effective date currently shown and not yet logged to history. */
 data class LiveDay(
     val date: LocalDate,
+    val rollover: LocalTime,
     val schedule: DaySchedule,
     val tasks: List<Task>,
 )
@@ -101,7 +107,7 @@ class TrackerRepository(
     }
 
     fun observeLiveDay(): Flow<LiveDay> =
-        db.invalidationTracker.createFlow(*AppDatabase.LIVE_DAY_TABLES).map { loadLiveDay() }
+        onChanges(*AppDatabase.LIVE_DAY_TABLES).map { loadLiveDay() }
 
     suspend fun loadLiveDay(): LiveDay {
         val rollover = settings.currentRolloverTime()
@@ -109,9 +115,48 @@ class TrackerRepository(
         return db.withTransaction {
             val date = liveDate() ?: fallback
             val schedule = scheduleFor(date, rollover)
-            LiveDay(date, schedule, DayBuilder.tasks(schedule, liveStates(date)))
+            LiveDay(date, rollover, schedule, DayBuilder.tasks(schedule, liveStates(date)))
         }
     }
+
+    /** Emits whenever anything that decides when slots happen changes (for rescheduling reminders). */
+    fun observeScheduleChanges(): Flow<Unit> = onChanges(*AppDatabase.LIVE_DAY_TABLES)
+
+    /** The schedule for any date (used for read-only previews of upcoming days). */
+    fun observeSchedule(date: LocalDate): Flow<DaySchedule> =
+        onChanges(*AppDatabase.LIVE_DAY_TABLES).map { scheduleFor(date) }
+
+    /** The live date, or today's effective date before the first rollover has run. */
+    suspend fun currentLiveDate(): LocalDate =
+        liveDate() ?: EffectiveDay.of(now(), settings.currentRolloverTime())
+
+    /** Current per-item streak (spec §7), including today's ticked tasks. */
+    fun observeItemStreaks(): Flow<Map<Long, Int>> =
+        onChanges("history", *AppDatabase.LIVE_DAY_TABLES).map {
+            val day = loadLiveDay()
+            val history = historyDao.all().map {
+                Occurrence(it.date, it.itemId, occurrenceOrder(day.rollover, it.slotStart), it.status == TaskStatus.DONE)
+            }
+            val today = day.tasks.map { Occurrence(day.date, it.item.id, occurrenceOrder(day.rollover, it.slot.start), it.done) }
+            day.tasks.map { it.item.id }.distinct().associateWith { Streaks.forItem(it, history, today).current }
+        }
+
+    /**
+     * Drops live state for tasks that no longer exist on the live day, so a removed task's tick
+     * doesn't come back if the same (slot, item) pair is added again later the same day.
+     * Called inside every schedule edit's transaction.
+     */
+    suspend fun pruneLiveStates() {
+        val date = liveDate() ?: return
+        val keys = DayBuilder.tasks(scheduleFor(date), emptyMap()).map { it.key }.toSet()
+        taskStateDao.forDate(date)
+            .filter { TaskKey(it.slotKey, it.itemId) !in keys }
+            .forEach { taskStateDao.delete(it.date, it.slotKey, it.itemId) }
+    }
+
+    /** Emits once now and again whenever [tables] or the rollover setting change. */
+    private fun onChanges(vararg tables: String): Flow<Unit> =
+        combine(db.invalidationTracker.createFlow(*tables), settings.rolloverTime) { _, _ -> }
 
     /**
      * Ticks or unticks a task shown for [date]. Ignored (returns false) if [date] is no longer
@@ -188,7 +233,7 @@ class TrackerRepository(
         return DayBuilder.schedule(date, overrideSlots, templateSlots, items, rollover)
     }
 
-    private suspend fun liveDate(): LocalDate? = metaDao.get(KEY_LIVE_DATE)?.let(LocalDate::parse)
+    suspend fun liveDate(): LocalDate? = metaDao.get(KEY_LIVE_DATE)?.let(LocalDate::parse)
 
     private suspend fun liveStates(date: LocalDate): Map<TaskKey, LiveState> =
         taskStateDao.forDate(date).associate {

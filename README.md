@@ -6,6 +6,22 @@ tasks scheduled in them, with checkboxes you tick right on the widget. Built for
 - Spec: [SPEC.md](SPEC.md) (source of truth)
 - Decisions where the spec was silent: [docs/DECISIONS.md](docs/DECISIONS.md)
 
+## What's in it
+
+- **Widget**: today's slots and tasks, ticked right on the home screen. Resizable (small, medium, large), follows light/dark mode, and highlights the current or next slot.
+- **Today**: the same day, larger, with notes, per-item streaks, swipe to peek at other days, and "Edit this day only".
+- **Schedule**: the weekly template (Mon–Sun), copying a day to others, date-only overrides, and items with colours and details.
+- **History**: a Monday-first month calendar coloured by completion, editable past entries, and streak and completion stats per item and overall.
+- **Settings**: day rollover time (default 06:00), slot reminders, and backup export/import as JSON.
+
+The day switches at the rollover time, not midnight, and the finished day is logged to History. If the phone was off, missed days are caught up the next time the app, widget or phone starts.
+
+## First run on the phone
+
+1. Install the APK (below), open the app once, and allow notifications for slot reminders.
+2. Long-press the home screen → **Widgets** → **Slot Tracker** → drag **Today's slots** onto the home screen. Resize it to taste.
+3. On Samsung, follow the tip on Today: **App info → Battery → Unrestricted**, so reminders and the 06:00 rollover run on time.
+
 ## Install on the phone
 
 1. Open the repo's **Releases** page in the phone's browser and download the latest `slot-tracker-x.y.z.apk`.
@@ -61,7 +77,11 @@ The build fails with a clear error if any secret is missing.
 Requires JDK 17+ and the Android SDK (`local.properties` with `sdk.dir`, or `ANDROID_HOME`).
 
 ```sh
-./gradlew testDebugUnitTest   # unit tests for day / rollover / streak logic
-./gradlew assembleDebug       # debug APK
-./gradlew assembleRelease     # release APK (unsigned unless the SIGNING_* environment variables are set)
+./gradlew testDebugUnitTest          # unit tests: day, rollover, streak, stats and timing logic
+./gradlew connectedDebugAndroidTest  # on a device/emulator: repositories (ticks, overrides, archive) and backup round-trip
+./gradlew lintRelease                # Android lint
+./gradlew assembleDebug              # debug APK
+./gradlew assembleRelease            # release APK (unsigned unless the SIGNING_* environment variables are set)
 ```
+
+CI runs the unit tests on every build; the instrumented tests need a device, so run them locally.

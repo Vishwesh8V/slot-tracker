@@ -46,12 +46,12 @@ jobs:
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
           echo "SIGNING_STORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
 
-      - name: Test and build release APK
+      - name: Test, lint and build release APK
         env:
           SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew --no-daemon testDebugUnitTest assembleRelease
+        run: ./gradlew --no-daemon testDebugUnitTest lintRelease assembleRelease
 
       - name: Verify signature
         run: |

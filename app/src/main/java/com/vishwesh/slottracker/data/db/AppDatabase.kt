@@ -28,6 +28,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun taskStateDao(): TaskStateDao
     abstract fun historyDao(): HistoryDao
     abstract fun metaDao(): MetaDao
+    abstract fun backupDao(): BackupDao
 
     companion object {
         /** Tables whose changes can alter what the live day shows. */

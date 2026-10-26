@@ -20,7 +20,7 @@ object DayBuilder {
     ): DaySchedule {
         val sources = overrideSlots ?: templateSlots
         val slots = sources
-            .sortedWith(compareBy<SlotSource>({ minutesAfter(rollover, it.start) }, { it.sortOrder }))
+            .sortedWith(compareBy<SlotSource>({ SlotTiming.offsetMinutes(rollover, it.start) }, { it.sortOrder }))
             .map { source ->
                 ScheduledSlot(
                     slotKey = source.slotKey,
@@ -31,11 +31,6 @@ object DayBuilder {
                 )
             }
         return DaySchedule(date = date, isOverride = overrideSlots != null, slots = slots)
-    }
-
-    private fun minutesAfter(rollover: LocalTime, time: LocalTime): Int {
-        val diff = (time.hour * 60 + time.minute) - (rollover.hour * 60 + rollover.minute)
-        return Math.floorMod(diff, 24 * 60)
     }
 
     /**

@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Slot Tracker</string>
+    <string name="widget_name">Today\'s slots</string>
+    <string name="widget_description">Today\'s slots and tasks, ticked right on the home screen</string>
 </resources>
